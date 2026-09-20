@@ -1,6 +1,6 @@
 name: DictationKeyboard
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.jonesvan
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -22,7 +22,7 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: DictationKeyboardApp/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.DictationKeyboard
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonesvan.DictationKeyboard
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
     scheme:
@@ -40,5 +40,5 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: KeyboardExtension/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.DictationKeyboard.Keyboard
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonesvan.DictationKeyboard.Keyboard
         GENERATE_INFOPLIST_FILE: NO
