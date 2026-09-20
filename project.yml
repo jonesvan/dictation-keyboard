@@ -25,6 +25,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.DictationKeyboard
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
+    scheme:
+      testTargets: []
     dependencies:
       - target: KeyboardExtension
         embed: true

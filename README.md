@@ -42,6 +42,28 @@ In Xcode:
 3. Run on a **physical device** (keyboard extensions and the microphone do not
    work reliably in the Simulator).
 
+## Continuous integration
+
+`.github/workflows/ios.yml` builds the app on a GitHub-hosted macOS runner on
+every push and pull request:
+
+- installs XcodeGen, generates the project, and runs `xcodebuild` for the iOS
+  Simulator with code signing disabled — a pure compile check.
+
+To also archive and upload to TestFlight, add these repository secrets
+(**Settings → Secrets and variables → Actions**) and run the workflow manually
+with `upload_to_testflight` enabled:
+
+| Secret | Description |
+| --- | --- |
+| `ASC_KEY_ID` | App Store Connect API key ID |
+| `ASC_ISSUER_ID` | App Store Connect API issuer ID |
+| `ASC_KEY_CONTENT` | The `.p8` API key, base64-encoded |
+| `APPLE_TEAM_ID` | Your 10-character Apple Developer Team ID |
+
+The upload job is best-effort and untested; signing/provisioning usually needs a
+few iterations.
+
 ## TestFlight
 
 A TestFlight link cannot be generated without an Apple Developer Program
@@ -49,9 +71,10 @@ membership and an App Store Connect app record. To ship a beta:
 
 1. Enroll in the Apple Developer Program.
 2. Create an app in App Store Connect with bundle ID `com.yourco.DictationKeyboard`.
-3. In Xcode select the app target → **Product → Archive**.
-4. In the Organizer choose **Distribute App → App Store Connect → Upload**.
-5. In App Store Connect → TestFlight, wait for processing, add testers, and
+3. Either follow the CI steps above, or in Xcode select the app target →
+   **Product → Archive**, then in the Organizer choose **Distribute App → App
+   Store Connect → Upload**.
+4. In App Store Connect → TestFlight, wait for processing, add testers, and
    Apple will issue the public link for that build.
 
 ## Enabling the keyboard
