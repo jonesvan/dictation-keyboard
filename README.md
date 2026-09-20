@@ -58,7 +58,7 @@ with `upload_to_testflight` enabled:
 | --- | --- |
 | `ASC_KEY_ID` | App Store Connect API key ID |
 | `ASC_ISSUER_ID` | App Store Connect API issuer ID |
-| `ASC_KEY_CONTENT` | The `.p8` API key, base64-encoded |
+| `ASC_KEY_CONTENT` | The full contents of the `.p8` API key file (the `-----BEGIN PRIVATE KEY-----` text) |
 | `APPLE_TEAM_ID` | Your 10-character Apple Developer Team ID |
 
 The upload job is best-effort and untested; signing/provisioning usually needs a
