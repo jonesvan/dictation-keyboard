@@ -1,0 +1,23 @@
+## macOS
+.DS_Store
+
+## Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Xcode project user data (project itself is committed)
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+## Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved

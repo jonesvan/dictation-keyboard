@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Dictation Keyboard</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The keyboard uses the microphone to transcribe your speech into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech is transcribed on-device or via Apple's speech service to type for you.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+</dict>
+</plist>
