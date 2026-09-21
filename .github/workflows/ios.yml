@@ -76,6 +76,13 @@ jobs:
           mkdir -p private_keys
           printf '%s\n' "$ASC_KEY_CONTENT" > private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
 
+      - name: Prune CI-created development certificates
+        continue-on-error: true
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: python3 scripts/prune_dev_certs.py private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
       - name: Archive
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
