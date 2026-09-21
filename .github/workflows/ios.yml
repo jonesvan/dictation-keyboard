@@ -78,23 +78,23 @@ jobs:
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            archive
 
       - name: Export IPA
         run: |
-          cat > ExportOptions.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store-connect</string>
-            <key>signingStyle</key>
-            <string>automatic</string>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          PLIST
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0">' \
+            '<dict>' \
+            '  <key>method</key>' \
+            '  <string>app-store-connect</string>' \
+            '  <key>signingStyle</key>' \
+            '  <string>automatic</string>' \
+            '  <key>uploadSymbols</key>' \
+            '  <true/>' \
+            '</dict>' \
+            '</plist>' > ExportOptions.plist
           xcodebuild -exportArchive \
             -archivePath build/DictationKeyboard.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
