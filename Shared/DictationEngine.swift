@@ -26,6 +26,7 @@ final class DictationEngine {
 
     var onTranscript: ((String, Bool) -> Void)?
     var onError: ((Error) -> Void)?
+    var onLog: ((String) -> Void)?
 
     var onDeviceOnly: Bool {
         get { UserDefaults.standard.bool(forKey: "onDeviceOnly") }
@@ -45,30 +46,60 @@ final class DictationEngine {
         }
     }
 
+    static var speechAuthorization: SFSpeechRecognizerAuthorizationStatus {
+        SFSpeechRecognizer.authorizationStatus()
+    }
+
+    static var microphonePermission: AVAudioApplication.recordPermission {
+        AVAudioApplication.shared.recordPermission
+    }
+
     static var hasAuthorization: Bool {
-        let speech = SFSpeechRecognizer.authorizationStatus() == .authorized
-        let mic = AVAudioApplication.shared.recordPermission == .granted
-        return speech && mic
+        speechAuthorization == .authorized && microphonePermission == .granted
+    }
+
+    private func log(_ message: String) {
+        onLog?(message)
     }
 
     func start() throws {
-        guard !isRecording else { return }
-        guard DictationEngine.hasAuthorization else { throw EngineError.notAuthorized }
-        guard let speechRecognizer, speechRecognizer.isAvailable else {
+        guard !isRecording else {
+            log("start ignored: already recording")
+            return
+        }
+        guard DictationEngine.hasAuthorization else {
+            log("start blocked: speech=\(DictationEngine.speechAuthorization) mic=\(DictationEngine.microphonePermission)")
+            throw EngineError.notAuthorized
+        }
+        guard let speechRecognizer else {
+            log("SFSpeechRecognizer init returned nil for locale \(Locale.current.identifier)")
+            throw EngineError.recognizerUnavailable
+        }
+
+        log("recognizer locale=\(speechRecognizer.locale.identifier) available=\(speechRecognizer.isAvailable) onDeviceSupported=\(speechRecognizer.supportsOnDeviceRecognition)")
+
+        guard speechRecognizer.isAvailable else {
             throw EngineError.recognizerUnavailable
         }
 
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            log("audio session: .record/.measurement/duckOthers")
         } catch {
+            log("setCategory(.record) failed: \(error.localizedDescription) — trying .playAndRecord")
             try session.setCategory(.playAndRecord, mode: .measurement,
                                     options: [.defaultToSpeaker, .allowBluetooth])
+            log("audio session: .playAndRecord/.measurement")
         }
         try session.setActive(true, options: .notifyOthersOnDeactivation)
 
+        let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
+        log("audio session active. input=\(inputs.isEmpty ? "none" : inputs)")
+
         let node = audioEngine.inputNode
         let format = node.outputFormat(forBus: 0)
+        log("input format sr=\(Int(format.sampleRate)) ch=\(format.channelCount)")
         guard format.channelCount > 0, format.sampleRate > 0 else {
             throw EngineError.recordingFailed
         }
@@ -78,15 +109,19 @@ final class DictationEngine {
         request.requiresOnDeviceRecognition = onDeviceOnly
         request.addsPunctuation = true
         self.request = request
+        log("request ready. onDeviceOnly=\(onDeviceOnly)")
 
         task = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             if let result {
-                self.onTranscript?(result.bestTranscription.formattedString, result.isFinal)
+                let text = result.bestTranscription.formattedString
+                self.log("result final=\(result.isFinal) chars=\(text.count)")
+                self.onTranscript?(text, result.isFinal)
                 if result.isFinal { self.stop() }
             }
             if let error {
                 let nsError = error as NSError
+                self.log("task error domain=\(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
                 if nsError.code != 216 && nsError.code != 203 {
                     self.onError?(error)
                 }
@@ -102,14 +137,17 @@ final class DictationEngine {
         do {
             try audioEngine.start()
         } catch {
+            log("audioEngine.start failed: \(error.localizedDescription)")
             stop()
             throw error
         }
         isRecording = true
+        log("audio engine started")
     }
 
     func stop() {
         guard isRecording || request != nil else { return }
+        log("stop (recording=\(isRecording))")
         isRecording = false
         if audioEngine.isRunning {
             audioEngine.stop()
