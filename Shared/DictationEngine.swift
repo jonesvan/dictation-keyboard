@@ -83,26 +83,6 @@ final class DictationEngine {
         }
 
         let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-            log("audio session: .record/.measurement/duckOthers")
-        } catch {
-            log("setCategory(.record) failed: \(error.localizedDescription) — trying .playAndRecord")
-            try session.setCategory(.playAndRecord, mode: .measurement,
-                                    options: [.defaultToSpeaker, .allowBluetooth])
-            log("audio session: .playAndRecord/.measurement")
-        }
-        try session.setActive(true, options: .notifyOthersOnDeactivation)
-
-        let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
-        log("audio session active. input=\(inputs.isEmpty ? "none" : inputs)")
-
-        let node = audioEngine.inputNode
-        let format = node.outputFormat(forBus: 0)
-        log("input format sr=\(Int(format.sampleRate)) ch=\(format.channelCount)")
-        guard format.channelCount > 0, format.sampleRate > 0 else {
-            throw EngineError.recordingFailed
-        }
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -121,6 +101,10 @@ final class DictationEngine {
             }
             if let error {
                 let nsError = error as NSError
+                if !self.isRecording {
+                    self.log("ignoring task error after stop: code=\(nsError.code)")
+                    return
+                }
                 self.log("task error domain=\(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
                 if nsError.code != 216 && nsError.code != 203 {
                     self.onError?(error)
@@ -128,21 +112,63 @@ final class DictationEngine {
             }
         }
 
-        node.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
-            self?.request?.append(buffer)
-        }
-        tapInstalled = true
+        let attempts: [(AVAudioSession.Category, AVAudioSession.CategoryOptions, String)] = [
+            (.playAndRecord, [.duckOthers, .defaultToSpeaker], ".playAndRecord"),
+            (.record, [.duckOthers], ".record"),
+            (.playAndRecord, [], ".playAndRecord (no options)")
+        ]
 
-        audioEngine.prepare()
-        do {
-            try audioEngine.start()
-        } catch {
-            log("audioEngine.start failed: \(error.localizedDescription)")
-            stop()
-            throw error
+        var lastError: Error = EngineError.recordingFailed
+        for (category, options, label) in attempts {
+            do {
+                try session.setCategory(category, mode: .measurement, options: options)
+                try session.setActive(true, options: .notifyOthersOnDeactivation)
+            } catch {
+                log("session config \(label) failed: \(error.localizedDescription)")
+                lastError = error
+                continue
+            }
+
+            let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
+            log("session \(label) active. input=\(inputs.isEmpty ? "none" : inputs)")
+
+            let node = audioEngine.inputNode
+            let format = node.outputFormat(forBus: 0)
+            log("input format sr=\(Int(format.sampleRate)) ch=\(format.channelCount)")
+            guard format.channelCount > 0, format.sampleRate > 0 else {
+                log("invalid input format on \(label)")
+                lastError = EngineError.recordingFailed
+                continue
+            }
+
+            if !tapInstalled {
+                node.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
+                    self?.request?.append(buffer)
+                }
+                tapInstalled = true
+            }
+
+            audioEngine.prepare()
+            do {
+                try audioEngine.start()
+                isRecording = true
+                log("audio engine started with \(label)")
+                return
+            } catch {
+                log("audioEngine.start failed with \(label): \(error.localizedDescription)")
+                lastError = error
+                if tapInstalled {
+                    node.removeTap(onBus: 0)
+                    tapInstalled = false
+                }
+                if audioEngine.isRunning { audioEngine.stop() }
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            }
         }
-        isRecording = true
-        log("audio engine started")
+
+        log("all audio configurations failed")
+        stop()
+        throw lastError
     }
 
     func stop() {
