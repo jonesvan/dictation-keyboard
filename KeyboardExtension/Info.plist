@@ -18,6 +18,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The keyboard uses the microphone to transcribe your speech into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech is transcribed on-device or via Apple's speech service to type for you.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
