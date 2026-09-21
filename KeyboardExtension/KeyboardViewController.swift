@@ -81,8 +81,13 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
 
+        guard hasFullAccess else {
+            statusLabel.text = "Turn on Allow Full Access for koyō in Settings → General → Keyboard → Keyboards"
+            return
+        }
+
         guard DictationEngine.hasAuthorization else {
-            statusLabel.text = "Open the app and grant Microphone + Speech Recognition access"
+            statusLabel.text = "Open koyō and grant Microphone + Speech Recognition access"
             return
         }
 
@@ -92,8 +97,9 @@ final class KeyboardViewController: UIInputViewController {
         do {
             try dictation.start()
         } catch {
+            dictation.stop()
             finishDictation()
-            statusLabel.text = "Could not start dictation"
+            statusLabel.text = "Could not start: \(error.localizedDescription)"
         }
     }
 

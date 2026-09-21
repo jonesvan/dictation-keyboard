@@ -23,8 +23,8 @@ struct SetupView: View {
                 }
 
                 Section("Enable the Keyboard") {
-                    Label("Settings → General → Keyboard → Keyboards → Add New Keyboard → Dictation", systemImage: "1.circle")
-                    Label("Tap the keyboard and enable Allow Full Access", systemImage: "2.circle")
+                    Label("Settings → General → Keyboard → Keyboards → Add New Keyboard → koyō", systemImage: "1.circle")
+                    Label("Tap koyō and enable Allow Full Access", systemImage: "2.circle")
                     Label("In any text field, switch keyboards with the globe key", systemImage: "3.circle")
                 }
 
@@ -44,7 +44,7 @@ struct SetupView: View {
                     }
                 }
             }
-            .navigationTitle("Dictation Keyboard")
+            .navigationTitle("koyō")
         }
     }
 }
