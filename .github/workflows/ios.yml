@@ -25,6 +25,13 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Select newest Xcode
+        run: |
+          xcode="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          echo "Selecting $xcode"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
       - name: Generate Xcode project
         run: xcodegen generate
 
@@ -51,6 +58,13 @@ jobs:
 
       - name: Install XcodeGen
         run: brew install xcodegen
+
+      - name: Select newest Xcode
+        run: |
+          xcode="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          echo "Selecting $xcode"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
 
       - name: Generate Xcode project
         run: xcodegen generate
