@@ -8,6 +8,7 @@ final class KeyboardViewController: UIInputViewController {
     private let nextKeyboardButton = UIButton(type: .system)
 
     private var committedText = ""
+    private var errorActive = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -15,8 +16,8 @@ final class KeyboardViewController: UIInputViewController {
         dictation.onTranscript = { [weak self] text, isFinal in
             self?.applyTranscript(text, isFinal: isFinal)
         }
-        dictation.onError = { [weak self] _ in
-            self?.finishDictation()
+        dictation.onError = { [weak self] error in
+            self?.showError("Dictation error: \(error.localizedDescription)")
         }
     }
 
@@ -38,7 +39,7 @@ final class KeyboardViewController: UIInputViewController {
         statusLabel.font = .preferredFont(forTextStyle: .subheadline)
         statusLabel.textColor = .secondaryLabel
         statusLabel.textAlignment = .center
-        statusLabel.numberOfLines = 2
+        statusLabel.numberOfLines = 3
         statusLabel.adjustsFontForContentSizeCategory = true
 
         micButton.setImage(UIImage(systemName: "mic.fill"), for: .normal)
@@ -57,9 +58,14 @@ final class KeyboardViewController: UIInputViewController {
         nextKeyboardButton.tintColor = .secondaryLabel
         nextKeyboardButton.addTarget(self, action: #selector(advanceToNextInputMode), for: .touchUpInside)
 
-        let stack = UIStackView(arrangedSubviews: [nextKeyboardButton, statusLabel, micButton])
-        stack.axis = .horizontal
-        stack.alignment = .center
+        let buttons = UIStackView(arrangedSubviews: [nextKeyboardButton, micButton])
+        buttons.axis = .horizontal
+        buttons.alignment = .center
+        buttons.distribution = .equalCentering
+
+        let stack = UIStackView(arrangedSubviews: [statusLabel, buttons])
+        stack.axis = .vertical
+        stack.alignment = .fill
         stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
@@ -81,13 +87,15 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
 
+        errorActive = false
+
         guard hasFullAccess else {
-            statusLabel.text = "Turn on Allow Full Access for koyō in Settings → General → Keyboard → Keyboards"
+            showError("Turn on Allow Full Access for koyō in Settings → General → Keyboard → Keyboards")
             return
         }
 
         guard DictationEngine.hasAuthorization else {
-            statusLabel.text = "Open koyō and grant Microphone + Speech Recognition access"
+            showError("Open koyō and allow Microphone and Speech Recognition access")
             return
         }
 
@@ -98,8 +106,7 @@ final class KeyboardViewController: UIInputViewController {
             try dictation.start()
         } catch {
             dictation.stop()
-            finishDictation()
-            statusLabel.text = "Could not start: \(error.localizedDescription)"
+            showError("Could not start: \(error.localizedDescription)")
         }
     }
 
@@ -116,6 +123,12 @@ final class KeyboardViewController: UIInputViewController {
         if isFinal { finishDictation() }
     }
 
+    private func showError(_ message: String) {
+        errorActive = true
+        micButton.tintColor = .systemBlue
+        statusLabel.text = message
+    }
+
     private func finishDictation() {
         committedText = ""
         micButton.tintColor = .systemBlue
@@ -123,6 +136,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func updateMicState() {
+        if errorActive { return }
         if statusLabel.text == "Listening…" || micButton.tintColor == .systemRed { return }
         statusLabel.text = "Tap the mic and start speaking"
     }
