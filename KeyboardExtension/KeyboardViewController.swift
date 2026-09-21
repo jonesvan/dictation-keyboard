@@ -16,6 +16,8 @@ final class KeyboardViewController: UIInputViewController {
 
     private var committedText = ""
     private var isListening = false
+    private var startTask: Task<Void, Never>?
+    private var startGeneration = 0
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -43,6 +45,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        startTask?.cancel()
+        startTask = nil
         dictation.stop()
         finishDictation()
     }
@@ -113,6 +117,8 @@ final class KeyboardViewController: UIInputViewController {
     @objc private func toggleDictation() {
         if isListening {
             log("user tapped mic -> stop")
+            startTask?.cancel()
+            startTask = nil
             dictation.stop()
             finishDictation()
             return
@@ -133,12 +139,23 @@ final class KeyboardViewController: UIInputViewController {
         committedText = ""
         isListening = true
         micButton.tintColor = .systemRed
-        do {
-            try dictation.start()
-        } catch {
-            log("start threw: \(error.localizedDescription)")
-            dictation.stop()
-            finishDictation()
+        startTask?.cancel()
+        startGeneration += 1
+        let generation = startGeneration
+        startTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if self.startGeneration == generation { self.startTask = nil }
+            }
+            do {
+                try await self.dictation.start()
+            } catch is CancellationError {
+                self.log("start cancelled")
+            } catch {
+                self.log("start threw: \(error.localizedDescription)")
+                self.dictation.stop()
+                self.finishDictation()
+            }
         }
     }
 

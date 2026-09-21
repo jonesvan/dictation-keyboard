@@ -17,7 +17,7 @@ final class DictationEngine {
         }
     }
 
-    private let audioEngine = AVAudioEngine()
+    private var audioEngine = AVAudioEngine()
     private let speechRecognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
@@ -62,7 +62,8 @@ final class DictationEngine {
         onLog?(message)
     }
 
-    func start() throws {
+    @MainActor
+    func start() async throws {
         guard !isRecording else {
             log("start ignored: already recording")
             return
@@ -112,6 +113,12 @@ final class DictationEngine {
             }
         }
 
+        // CoreAudio reports an I/O start failure as OSStatus 2003329396 ('what',
+        // "AUIOClient_StartIO failed"). It is a transient "input hardware not ready"
+        // race (cold-started extension, another process holding the mic, etc.), not a
+        // category/format rejection, so retrying categories microseconds apart cannot
+        // help. Give the HAL time and retry with a fresh engine instead.
+        let audioStartFailedCode = 2003329396
         let attempts: [(AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions, String)] = [
             (.playAndRecord, .measurement, [.duckOthers, .defaultToSpeaker], "playAndRecord/measurement"),
             (.playAndRecord, .default, [.duckOthers, .defaultToSpeaker], "playAndRecord/default"),
@@ -120,52 +127,78 @@ final class DictationEngine {
             (.playAndRecord, .default, [], "playAndRecord/default/no-options")
         ]
 
+        #if targetEnvironment(simulator)
+        log("warning: running in the Simulator; microphone capture commonly fails with 2003329396. Use a physical device.")
+        #endif
+
         var lastError: Error = EngineError.recordingFailed
-        for (category, mode, options, label) in attempts {
-            do {
-                try session.setCategory(category, mode: mode, options: options)
-                try session.setActive(true, options: .notifyOthersOnDeactivation)
-            } catch {
-                log("session config \(label) failed: \(error.localizedDescription)")
-                lastError = error
-                continue
+        let rounds = 3
+        for round in 0..<rounds {
+            try Task.checkCancellation()
+            if round > 0 {
+                let delayMS = 250 * round
+                log("retrying audio engine start in \(delayMS)ms (round \(round + 1)/\(rounds))")
+                try await Task.sleep(nanoseconds: UInt64(delayMS) * 1_000_000)
+                try Task.checkCancellation()
+                try? session.setActive(true, options: .notifyOthersOnDeactivation)
             }
 
-            let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
-            log("session \(label) active. input=\(inputs.isEmpty ? "none" : inputs)")
+            makeFreshEngine()
 
-            let node = audioEngine.inputNode
-            let outFormat = node.outputFormat(forBus: 0)
-            let inFormat = node.inputFormat(forBus: 0)
-            log("formats \(label) out(sr=\(Int(outFormat.sampleRate)) ch=\(outFormat.channelCount)) in(sr=\(Int(inFormat.sampleRate)) ch=\(inFormat.channelCount))")
-            let format = (outFormat.channelCount > 0 && outFormat.sampleRate > 0) ? outFormat : inFormat
-            guard format.channelCount > 0, format.sampleRate > 0 else {
-                log("invalid input format on \(label)")
-                lastError = EngineError.recordingFailed
-                continue
-            }
-
-            if !tapInstalled {
-                node.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
-                    self?.request?.append(buffer)
+            for (category, mode, options, label) in attempts {
+                do {
+                    try session.setCategory(category, mode: mode, options: options)
+                    try session.setActive(true, options: .notifyOthersOnDeactivation)
+                } catch {
+                    log("session config \(label) failed: \(error.localizedDescription)")
+                    lastError = error
+                    continue
                 }
-                tapInstalled = true
+
+                let inputs = session.currentRoute.inputs.map { $0.portType.rawValue }.joined(separator: ",")
+                log("session \(label) active. input=\(inputs.isEmpty ? "none" : inputs) otherAudio=\(session.isOtherAudioPlaying)")
+
+                let node = audioEngine.inputNode
+                let outFormat = node.outputFormat(forBus: 0)
+                let inFormat = node.inputFormat(forBus: 0)
+                log("formats \(label) out(sr=\(Int(outFormat.sampleRate)) ch=\(outFormat.channelCount)) in(sr=\(Int(inFormat.sampleRate)) ch=\(inFormat.channelCount))")
+                let format = (outFormat.channelCount > 0 && outFormat.sampleRate > 0) ? outFormat : inFormat
+                guard format.channelCount > 0, format.sampleRate > 0 else {
+                    log("invalid input format on \(label)")
+                    lastError = EngineError.recordingFailed
+                    continue
+                }
+
+                if !tapInstalled {
+                    node.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
+                        self?.request?.append(buffer)
+                    }
+                    tapInstalled = true
+                }
+
+                audioEngine.prepare()
+                do {
+                    try audioEngine.start()
+                    if Task.isCancelled {
+                        log("start cancelled after engine start; tearing down")
+                        throw CancellationError()
+                    }
+                    isRecording = true
+                    log("audio engine started with \(label) (round \(round + 1))")
+                    return
+                } catch is CancellationError {
+                    makeFreshEngine()
+                    throw CancellationError()
+                } catch {
+                    let nsError = error as NSError
+                    let isHALStartFailure = nsError.code == audioStartFailedCode
+                    log("audioEngine.start failed with \(label): code=\(nsError.code) halStartIO=\(isHALStartFailure) \(error.localizedDescription)")
+                    lastError = error
+                    makeFreshEngine()
+                }
             }
 
-            audioEngine.prepare()
-            do {
-                try audioEngine.start()
-                isRecording = true
-                log("audio engine started with \(label)")
-                return
-            } catch {
-                log("audioEngine.start failed with \(label): \(error.localizedDescription)")
-                lastError = error
-                if tapInstalled {
-                    node.removeTap(onBus: 0)
-                    tapInstalled = false
-                }
-                if audioEngine.isRunning { audioEngine.stop() }
+            if round < rounds - 1 {
                 try? session.setActive(false, options: .notifyOthersOnDeactivation)
             }
         }
@@ -173,6 +206,12 @@ final class DictationEngine {
         log("all audio configurations failed")
         stop()
         throw lastError
+    }
+
+    private func makeFreshEngine() {
+        if audioEngine.isRunning { audioEngine.stop() }
+        audioEngine = AVAudioEngine()
+        tapInstalled = false
     }
 
     func stop() {
