@@ -112,16 +112,18 @@ final class DictationEngine {
             }
         }
 
-        let attempts: [(AVAudioSession.Category, AVAudioSession.CategoryOptions, String)] = [
-            (.playAndRecord, [.duckOthers, .defaultToSpeaker], ".playAndRecord"),
-            (.record, [.duckOthers], ".record"),
-            (.playAndRecord, [], ".playAndRecord (no options)")
+        let attempts: [(AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions, String)] = [
+            (.playAndRecord, .measurement, [.duckOthers, .defaultToSpeaker], "playAndRecord/measurement"),
+            (.playAndRecord, .default, [.duckOthers, .defaultToSpeaker], "playAndRecord/default"),
+            (.record, .measurement, [.duckOthers], "record/measurement"),
+            (.record, .default, [.duckOthers], "record/default"),
+            (.playAndRecord, .default, [], "playAndRecord/default/no-options")
         ]
 
         var lastError: Error = EngineError.recordingFailed
-        for (category, options, label) in attempts {
+        for (category, mode, options, label) in attempts {
             do {
-                try session.setCategory(category, mode: .measurement, options: options)
+                try session.setCategory(category, mode: mode, options: options)
                 try session.setActive(true, options: .notifyOthersOnDeactivation)
             } catch {
                 log("session config \(label) failed: \(error.localizedDescription)")
@@ -133,8 +135,10 @@ final class DictationEngine {
             log("session \(label) active. input=\(inputs.isEmpty ? "none" : inputs)")
 
             let node = audioEngine.inputNode
-            let format = node.outputFormat(forBus: 0)
-            log("input format sr=\(Int(format.sampleRate)) ch=\(format.channelCount)")
+            let outFormat = node.outputFormat(forBus: 0)
+            let inFormat = node.inputFormat(forBus: 0)
+            log("formats \(label) out(sr=\(Int(outFormat.sampleRate)) ch=\(outFormat.channelCount)) in(sr=\(Int(inFormat.sampleRate)) ch=\(inFormat.channelCount))")
+            let format = (outFormat.channelCount > 0 && outFormat.sampleRate > 0) ? outFormat : inFormat
             guard format.channelCount > 0, format.sampleRate > 0 else {
                 log("invalid input format on \(label)")
                 lastError = EngineError.recordingFailed
