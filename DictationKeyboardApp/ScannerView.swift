@@ -12,7 +12,7 @@ struct ScannerView: View {
                 controls
                 filters
                 Divider()
-                packetList
+                deviceList
             }
             .navigationTitle("FindMy Scan")
             .toolbar {
@@ -22,7 +22,7 @@ struct ScannerView: View {
                     } label: {
                         Label("Export CSV", systemImage: "square.and.arrow.up")
                     }
-                    .disabled(scanner.packets.isEmpty)
+                    .disabled(scanner.devices.isEmpty)
                 }
             }
             .sheet(item: $exportItem) { item in
@@ -39,15 +39,17 @@ struct ScannerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(statusTitle)
                     .font(.subheadline.bold())
-                Text("BLE \(scanner.totalAdvertisements) · Apple \(scanner.appleAdvertisements) · 0x12 \(scanner.findMyAdvertisements)")
-                    .font(.caption.monospacedDigit())
+                Text("BLE \(scanner.totalAdvertisements) · connectable \(scanner.connectableAdvertisements) · candidates \(scanner.candidateCount) · confirmed \(scanner.confirmedCount)")
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 if let error = scanner.bluetoothError {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("iOS hides hardware MAC addresses; the identifier below is app-scoped.")
+                    Text("iOS hides Apple manufacturer data; Find My devices are confirmed by probing their GATT services.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -80,11 +82,11 @@ struct ScannerView: View {
                 Label("Clear", systemImage: "trash")
             }
             .buttonStyle(.bordered)
-            .disabled(scanner.packets.isEmpty)
+            .disabled(scanner.devices.isEmpty)
 
             Spacer()
 
-            Text("\(scanner.filtered.count)/\(scanner.packets.count)")
+            Text("\(scanner.filtered.count)/\(scanner.devices.count)")
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
@@ -97,7 +99,7 @@ struct ScannerView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Filter by identifier, payload, status…", text: $scanner.filterText)
+                TextField("Filter by identifier, name, service, category…", text: $scanner.filterText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 if !scanner.filterText.isEmpty {
@@ -119,30 +121,30 @@ struct ScannerView: View {
                     .frame(width: 64, alignment: .trailing)
             }
 
-            Toggle("Show all Apple BLE types (not just 0x12)", isOn: $scanner.showAllApple)
+            Toggle("Show all BLE devices (not just Find My)", isOn: $scanner.showAllDevices)
                 .font(.footnote)
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
     }
 
-    private var packetList: some View {
+    private var deviceList: some View {
         Group {
             if scanner.filtered.isEmpty {
                 ContentUnavailableView {
-                    Label(scanner.packets.isEmpty ? "Scanning for Find My packets…" : "No matching packets",
+                    Label(scanner.devices.isEmpty ? "Scanning for BLE devices…" : "No matching devices",
                           systemImage: "antenna.radiowaves.left.and.right")
                 } description: {
-                    Text(scanner.packets.isEmpty
-                         ? "Move near an AirTag or Find My accessory. Apple type 0x12 advertisements will appear here."
+                    Text(scanner.devices.isEmpty
+                         ? "Move near an AirTag or Find My accessory. Candidates are connected to and probed automatically; enable \"Show all BLE devices\" to see everything."
                          : "Adjust the filters above.")
                 }
             } else {
-                List(scanner.filtered) { packet in
+                List(scanner.filtered) { device in
                     NavigationLink {
-                        PacketDetailView(packet: packet)
+                        PacketDetailView(device: device)
                     } label: {
-                        PacketRow(packet: packet)
+                        DeviceRow(device: device)
                     }
                 }
                 .listStyle(.plain)

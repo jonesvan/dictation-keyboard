@@ -6,25 +6,28 @@ struct ExportItem: Identifiable {
 }
 
 enum CSVExporter {
-    static func export(_ packets: [FindMyPacket]) -> ExportItem? {
+    static func export(_ devices: [BLEDevice]) -> ExportItem? {
         let iso = ISO8601DateFormatter()
 
         var lines = [
-            "first_seen,last_seen,identifier,rssi,status_byte,apple_type,public_key,manufacturer_data,name,sightings"
+            "first_seen,last_seen,identifier,category,name,rssi,connectable,confirmed_service,services,manufacturer_data,apple_type,status_byte,sightings"
         ]
 
-        for packet in packets.sorted(by: { $0.lastSeen > $1.lastSeen }) {
+        for device in devices.sorted(by: { $0.lastSeen > $1.lastSeen }) {
             let fields = [
-                iso.string(from: packet.firstSeen),
-                iso.string(from: packet.lastSeen),
-                packet.peripheralID.uuidString,
-                "\(packet.rssi)",
-                packet.statusHex,
-                String(format: "0x%02X", packet.appleType),
-                packet.publicKeyHex,
-                packet.manufacturerHex,
-                packet.name ?? "",
-                "\(packet.sightings)"
+                iso.string(from: device.firstSeen),
+                iso.string(from: device.lastSeen),
+                device.peripheralID.uuidString,
+                device.category.rawValue,
+                device.name ?? "",
+                "\(device.rssi)",
+                device.isConnectable ? "yes" : "no",
+                device.confirmedService ?? "",
+                device.serviceUUIDs.joined(separator: " "),
+                device.manufacturerHex,
+                device.appleType.map { String(format: "0x%02X", $0) } ?? "",
+                device.statusHex,
+                "\(device.sightings)"
             ]
             lines.append(fields.map(escape).joined(separator: ","))
         }

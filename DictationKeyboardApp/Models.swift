@@ -1,4 +1,5 @@
 import Foundation
+import CoreBluetooth
 
 struct RSSISample: Identifiable, Equatable {
     let id = UUID()
@@ -6,22 +7,67 @@ struct RSSISample: Identifiable, Equatable {
     let rssi: Int
 }
 
-struct FindMyPacket: Identifiable, Equatable {
+enum DeviceCategory: String, Equatable {
+    case confirmedAirTag = "AirTag (confirmed)"
+    case confirmedFindMy = "Find My device (confirmed)"
+    case findMyCandidate = "Find My candidate (probing…)"
+    case apple = "Apple advertisement"
+    case other = "BLE device"
+
+    var isFindMyRelated: Bool {
+        switch self {
+        case .confirmedAirTag, .confirmedFindMy, .findMyCandidate: return true
+        default: return false
+        }
+    }
+}
+
+/// Apple Find My GATT services used to confirm a candidate over a connection.
+/// iOS strips Apple manufacturer data from advertisements, so the only reliable
+/// way to identify AirTags / Find My accessories is to connect and probe these.
+enum FindMyServices {
+    static let airTagSound = CBUUID(string: "7DFC9000-7D1C-4951-86AA-8D9728F8D66C")
+    static let findMyOffered = CBUUID(string: "FD43")
+    static let findMyInfo = CBUUID(string: "87290102-3C51-43B1-A1A9-11B9DC38478B")
+
+    static let probe: [CBUUID] = [airTagSound, findMyOffered, findMyInfo]
+
+    static func match(_ uuid: CBUUID) -> (DeviceCategory, String)? {
+        if uuid.data == airTagSound.data { return (.confirmedAirTag, "AirTag sound service") }
+        if uuid.data == findMyOffered.data { return (.confirmedFindMy, "Find My offered service (FD43)") }
+        if uuid.data == findMyInfo.data { return (.confirmedFindMy, "Find My info service") }
+        return nil
+    }
+}
+
+struct BLEDevice: Identifiable, Equatable {
     let id: String
     let peripheralID: UUID
-    let manufacturerData: Data
-    let appleType: UInt8
-    let statusByte: UInt8?
-    let publicKey: Data?
     var name: String?
+    var rssi: Int
     var firstSeen: Date
     var lastSeen: Date
-    var rssi: Int
     var sightings: Int
     var history: [RSSISample]
+    var isConnectable: Bool
+    var manufacturerData: Data?
+    var serviceUUIDs: [String]
+    var hasServiceData: Bool
+    var category: DeviceCategory
+    var confirmedService: String?
+    var appleType: UInt8?
+    var statusByte: UInt8?
+    var publicKey: Data?
 
-    var manufacturerHex: String { manufacturerData.hexString }
+    /// Devices we consider Find My related: confirmed/candidate trackers, plus any
+    /// Apple 0x12 advertisement (kept for the case where iOS does expose it).
+    var isFindMyRelated: Bool {
+        category.isFindMyRelated || appleType == ApplePacketParser.findMyType
+    }
+
+    var manufacturerHex: String { manufacturerData?.hexString ?? "—" }
     var publicKeyHex: String { publicKey?.hexString ?? "—" }
+    var servicesLabel: String { serviceUUIDs.isEmpty ? "—" : serviceUUIDs.joined(separator: ", ") }
 
     var statusHex: String {
         guard let statusByte else { return "—" }
@@ -33,19 +79,11 @@ struct FindMyPacket: Identifiable, Equatable {
         return String(statusByte, radix: 2).leftPadded(to: 8, with: "0")
     }
 
-    var typeName: String {
-        switch appleType {
-        case 0x02: return "iBeacon"
-        case 0x05: return "AirDrop"
-        case 0x07: return "Proximity Pairing"
-        case 0x09: return "AirPlay Target"
-        case 0x0A: return "AirPlay Source"
-        case 0x0C: return "Handoff"
-        case 0x0F: return "Nearby Action"
-        case 0x10: return "Nearby Info"
-        case 0x12: return "Find My / Offline Finding"
-        default: return String(format: "0x%02X", appleType)
-        }
+    var advertisedSummary: String {
+        if let manufacturerData { return manufacturerData.hexString }
+        if !serviceUUIDs.isEmpty { return serviceUUIDs.joined(separator: " ") }
+        if hasServiceData { return "service data" }
+        return "—"
     }
 }
 

@@ -8,6 +8,15 @@ func rssiColor(_ rssi: Int) -> Color {
     return .green
 }
 
+func categoryColor(_ category: DeviceCategory) -> Color {
+    switch category {
+    case .confirmedAirTag, .confirmedFindMy: return .green
+    case .findMyCandidate: return .orange
+    case .apple: return .blue
+    case .other: return .secondary
+    }
+}
+
 struct SignalBar: View {
     let rssi: Int
 
@@ -30,48 +39,55 @@ struct SignalBar: View {
     }
 }
 
-struct PacketRow: View {
-    let packet: FindMyPacket
+struct DeviceRow: View {
+    let device: BLEDevice
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(packet.name ?? "Unnamed device")
+                Text(device.name ?? device.category.rawValue)
                     .font(.subheadline.bold())
                     .lineLimit(1)
                 Spacer()
-                Text(packet.lastSeen, format: .dateTime.hour().minute().second())
+                Text(device.lastSeen, format: .dateTime.hour().minute().second())
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 8) {
-                SignalBar(rssi: packet.rssi)
-                Text("\(packet.rssi) dBm")
+                SignalBar(rssi: device.rssi)
+                Text("\(device.rssi) dBm")
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(rssiColor(packet.rssi))
+                    .foregroundStyle(rssiColor(device.rssi))
                 Spacer()
-                Text("x\(packet.sightings)")
+                Text("x\(device.sightings)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
-            Text(packet.peripheralID.uuidString)
+            Text(device.peripheralID.uuidString)
                 .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
-            HStack(spacing: 12) {
-                Label(packet.statusHex, systemImage: "flag")
-                Label(String(format: "0x%02X", packet.appleType), systemImage: "tag")
-                if packet.appleType != ApplePacketParser.findMyType {
-                    Text(packet.typeName)
+            HStack(spacing: 8) {
+                Text(device.category.rawValue)
+                    .font(.caption2.bold())
+                    .foregroundStyle(categoryColor(device.category))
+                if device.isConnectable {
+                    Label("connectable", systemImage: "link")
+                }
+                if !device.serviceUUIDs.isEmpty {
+                    Label("\(device.serviceUUIDs.count) svc", systemImage: "square.stack.3d.up")
+                }
+                if device.manufacturerData != nil {
+                    Label("mfg data", systemImage: "shippingbox")
                 }
             }
-            .font(.caption2.monospaced())
+            .font(.caption2)
             .foregroundStyle(.secondary)
 
-            Text(packet.manufacturerHex)
+            Text(device.advertisedSummary)
                 .font(.caption2.monospaced())
                 .foregroundStyle(.tertiary)
                 .lineLimit(2)

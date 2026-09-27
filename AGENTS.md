@@ -4,12 +4,24 @@ Guidance for agents working in this repository.
 
 ## What this is
 
-An iOS SwiftUI app that scans BLE advertisements using CoreBluetooth and lists
-those matching Apple's Find My / Offline Finding format (manufacturer ID
-`0x004C`, type `0x12`). It shows each packet's timestamp, RSSI, app-scoped
-peripheral identifier, status byte, and raw payload, with filtering, a
+An iOS SwiftUI app that scans BLE advertisements using CoreBluetooth and detects
+Apple Find My / Offline Finding trackers (AirTags and third-party accessories).
+It lists each device's timestamp, RSSI, app-scoped peripheral identifier,
+advertised services, and raw advertisement fields, with filtering, a
 signal-strength bar/history chart, pause/clear controls, and CSV export. It
 never attempts to decrypt Apple's encrypted location data.
+
+**Critical platform fact (do not regress):** iOS does **not** deliver Apple's
+Find My manufacturer data (`0x004C`, type `0x12`) to apps — `CBAdvertisementDataManufacturerDataKey`
+is stripped for these advertisements (the same reason iBeacon data is
+CoreLocation-only). A scanner that waits for that key sees nothing. The correct
+approach, used by the published `seemoo-lab/AirGuard-iOS` app, is to treat
+*connectable advertisements with no name, no service UUIDs, no service data, and
+no manufacturer data* as Find My candidates, then **connect and probe Apple's
+Find My GATT services** to confirm
+(`7DFC9000-7D1C-4951-86AA-8D9728F8D66C` for AirTags, `FD43` / `87290102-3C51-43B1-A1A9-11B9DC38478B`
+for Find My devices). `ApplePacketParser` is kept only for the rare case where
+iOS does expose Apple manufacturer data.
 
 Layout:
 
@@ -111,7 +123,12 @@ Other deployment facts:
   crashes. Handle every `CBManagerState` (powered off, unauthorized, unsupported).
 - iOS does not expose a peripheral's hardware MAC address; only
   `CBPeripheral.identifier` (an app-scoped UUID) is available. Do not claim a MAC.
+- iOS strips Apple's Find My manufacturer data; identify AirTags/Find My devices
+  by connecting and probing the GATT services in `FindMyServices`, never by
+  expecting `CBAdvertisementDataManufacturerDataKey` for Apple adverts.
 - The scanner must never attempt to decrypt Apple's encrypted location payload;
   only decode public advertisement fields (status byte, public key, raw bytes).
 - Scanning uses `CBCentralManagerScanOptionAllowDuplicatesKey` so RSSI and
   sighting counts update live.
+- Retain `CBPeripheral` references (the `peripherals` dictionary) or delegate
+  callbacks for connected candidates stop arriving.

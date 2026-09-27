@@ -2,23 +2,27 @@ import SwiftUI
 import Charts
 
 struct PacketDetailView: View {
-    let packet: FindMyPacket
+    let device: BLEDevice
 
     var body: some View {
         List {
             Section("Identity") {
-                row("Device name", packet.name ?? "—")
-                row("Identifier", packet.peripheralID.uuidString)
-                row("Advertisement type", "0x\(String(format: "%02X", packet.appleType)) · \(packet.typeName)")
-                row("First seen", packet.firstSeen.formatted(date: .abbreviated, time: .standard))
-                row("Last seen", packet.lastSeen.formatted(date: .abbreviated, time: .standard))
-                row("Sightings", "\(packet.sightings)")
-                row("Last RSSI", "\(packet.rssi) dBm")
+                row("Name", device.name ?? "—")
+                row("Category", device.category.rawValue)
+                if let service = device.confirmedService {
+                    row("Confirmed via", service)
+                }
+                row("Identifier", device.peripheralID.uuidString)
+                row("Connectable", device.isConnectable ? "Yes" : "No")
+                row("First seen", device.firstSeen.formatted(date: .abbreviated, time: .standard))
+                row("Last seen", device.lastSeen.formatted(date: .abbreviated, time: .standard))
+                row("Sightings", "\(device.sightings)")
+                row("Last RSSI", "\(device.rssi) dBm")
             }
 
             Section("Signal history") {
-                if packet.history.count >= 2 {
-                    Chart(packet.history) { sample in
+                if device.history.count >= 2 {
+                    Chart(device.history) { sample in
                         LineMark(
                             x: .value("Time", sample.date),
                             y: .value("RSSI", sample.rssi)
@@ -28,7 +32,7 @@ struct PacketDetailView: View {
                             x: .value("Time", sample.date),
                             y: .value("RSSI", sample.rssi)
                         )
-                        .foregroundStyle(rssiColor(packet.rssi).opacity(0.15))
+                        .foregroundStyle(rssiColor(device.rssi).opacity(0.15))
                     }
                     .chartYScale(domain: -100 ... -30)
                     .frame(height: 160)
@@ -39,25 +43,30 @@ struct PacketDetailView: View {
                 }
             }
 
-            Section("Packet") {
-                row("Status byte", "\(packet.statusHex) (0b\(packet.statusBits))")
-                row("Public key (22 bytes)", packet.publicKeyHex)
+            Section("Advertisement") {
+                row("Advertised services", device.servicesLabel)
+                row("Service data", device.hasServiceData ? "present" : "—")
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Manufacturer data")
                         .foregroundStyle(.secondary)
-                    Text(packet.manufacturerHex)
+                    Text(device.manufacturerHex)
                         .font(.caption.monospaced())
                 }
                 .font(.footnote)
+                if device.appleType != nil {
+                    row("Apple type", String(format: "0x%02X", device.appleType!))
+                    row("Status byte", "\(device.statusHex) (0b\(device.statusBits))")
+                    row("Public key (22 bytes)", device.publicKeyHex)
+                }
             }
 
             Section {
-                Text("Only public advertisement fields are shown. This app never attempts to decrypt Apple's encrypted location payload; the rotating key can only be resolved inside Apple's Find My network.")
+                Text("iOS strips Apple's Find My manufacturer data (0x004C / 0x12) from advertisements, so AirTags and Find My accessories are confirmed by connecting and probing Apple's Find My GATT services instead. Only public data is shown; the encrypted location payload is never touched.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Packet")
+        .navigationTitle("Device")
         .navigationBarTitleDisplayMode(.inline)
     }
 
