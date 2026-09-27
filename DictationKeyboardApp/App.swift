@@ -1,10 +1,10 @@
 import SwiftUI
 
 @main
-struct DictationKeyboardApp: App {
+struct FindMyScannerApp: App {
     var body: some Scene {
         WindowGroup {
-            SetupView()
+            ScannerView()
         }
     }
 }

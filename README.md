@@ -1,29 +1,47 @@
-# Dictation Keyboard
+# FindMy BLE Scanner
 
-An iOS custom keyboard that turns speech into text using Apple's built-in
-speech recognition stack (the `Speech` framework). It works in any app that
-accepts text input.
+An iOS SwiftUI app that scans Bluetooth Low Energy advertisements and surfaces
+those in Apple's **Find My / Offline Finding** format (manufacturer ID `0x004C`,
+type `0x12`). It shows a live-updating list of each packet's timestamp, RSSI,
+app-scoped identifier, status byte, and raw payload, with filtering, a
+signal-strength bar and history graph, pause/clear controls, and CSV export.
 
-> **Not Siri's private model.** Apple does not expose the Siri dictation model to
-> third-party apps. This project uses the public `Speech` framework
-> (`SFSpeechRecognizer`), which powers system dictation. On iOS 26+ you can
-> migrate the engine to `SpeechAnalyzer` / `SpeechTranscriber`; the keyboard
-> extension code does not need to change.
+It reads only the public advertisement fields. It does **not** attempt to
+decrypt Apple's encrypted location payload, and it never uploads anything — the
+rotating key can only be resolved inside Apple's Find My network.
+
+> **No hardware MAC address.** iOS/CoreBluetooth does not expose a peripheral's
+> hardware MAC address to third-party apps. The `identifier` shown is a
+> per-device, per-app `UUID` that is stable on this device for this app but is
+> not the MAC. There is no public API to obtain the MAC.
 
 ## Status
 
 This repository contains source and an [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-spec. It has **not been compiled or signed** here (the authoring environment is
-Linux and has no Xcode). You must build it on a Mac.
+spec. It has **not been compiled or signed** in the authoring environment (Linux,
+no Xcode). Build verification and deployment happen through GitHub Actions.
 
 ## Layout
 
 ```
-DictationKeyboardApp/   Containing app: permissions + setup instructions
-KeyboardExtension/      The keyboard (UIInputViewController)
-Shared/                 Speech engine shared by both targets
-project.yml             XcodeGen project spec
+DictationKeyboardApp/   The SwiftUI app (scanner, views, CSV export)
+project.yml             XcodeGen project spec (source of truth)
+.github/workflows/ios.yml   CI: build + optional TestFlight deploy
 ```
+
+The target/scheme are still named `DictationKeyboardApp` and the bundle IDs are
+unchanged so the existing TestFlight pipeline keeps working.
+
+## Features
+
+- Live list keyed by peripheral + payload, so rotating Find My keys appear as new
+  rows while repeat sightings update in place (RSSI, timestamp, sighting count).
+- Per-packet detail: status byte (hex + binary), 22-byte public key, full
+  manufacturer data, and an RSSI-over-time chart.
+- Filters: free-text (identifier / payload / status), minimum RSSI slider, and a
+  toggle to show all Apple BLE types instead of only `0x12`.
+- Pause / resume scanning and clear the captured packets.
+- CSV export via the system share sheet.
 
 ## Build
 
@@ -35,12 +53,8 @@ xcodegen generate
 open DictationKeyboard.xcodeproj
 ```
 
-In Xcode:
-
-1. Select the `DictationKeyboard` project and set your **Team** on both targets.
-2. Change the bundle identifiers from `com.example.*` to your own.
-3. Run on a **physical device** (keyboard extensions and the microphone do not
-   work reliably in the Simulator).
+Run on a **physical device** — the Simulator does not provide real BLE
+advertisements.
 
 ## Continuous integration
 
@@ -50,49 +64,11 @@ every push and pull request:
 - installs XcodeGen, generates the project, and runs `xcodebuild` for the iOS
   Simulator with code signing disabled — a pure compile check.
 
-To also archive and upload to TestFlight, add these repository secrets
-(**Settings → Secrets and variables → Actions**) and run the workflow manually
-with `upload_to_testflight` enabled:
+See `AGENTS.md` for the exact `gh` commands to watch the build and to trigger the
+TestFlight upload.
 
-| Secret | Description |
-| --- | --- |
-| `ASC_KEY_ID` | App Store Connect API key ID |
-| `ASC_ISSUER_ID` | App Store Connect API issuer ID |
-| `ASC_KEY_CONTENT` | The full contents of the `.p8` API key file (the `-----BEGIN PRIVATE KEY-----` text) |
-| `APPLE_TEAM_ID` | Your 10-character Apple Developer Team ID |
+## Permissions
 
-The upload job is best-effort and untested; signing/provisioning usually needs a
-few iterations.
-
-## TestFlight
-
-A TestFlight link cannot be generated without an Apple Developer Program
-membership and an App Store Connect app record. To ship a beta:
-
-1. Enroll in the Apple Developer Program.
-2. Create an app in App Store Connect with bundle ID `com.yourco.DictationKeyboard`.
-3. Either follow the CI steps above, or in Xcode select the app target →
-   **Product → Archive**, then in the Organizer choose **Distribute App → App
-   Store Connect → Upload**.
-4. In App Store Connect → TestFlight, wait for processing, add testers, and
-   Apple will issue the public link for that build.
-
-## Enabling the keyboard
-
-Settings → General → Keyboard → Keyboards → Add New Keyboard → Dictation, then
-enable **Allow Full Access** (required for microphone access in a keyboard
-extension).
-
-## Known limitations
-
-- Keyboard extensions have restricted audio access; microphone permission must be
-  granted and **Allow Full Access** enabled.
-- `requiresOnDeviceRecognition` needs the on-device model downloaded for the
-  selected locale, otherwise recognition fails — use the on-device toggle in the
-  app only when the model is available.
-- Partial results are inserted and then corrected; very fast typing while
-  dictating can interleave text.
-
-## License
-
-MIT
+The app declares `NSBluetoothAlwaysUsageDescription`. On first launch iOS asks
+for Bluetooth permission; if denied, the in-app banner links straight to
+Settings.

@@ -7,8 +7,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "8"
+    MARKETING_VERSION: "1.1"
+    CURRENT_PROJECT_VERSION: "9"
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: ""
 
@@ -22,7 +22,6 @@ targets:
           - PrivacyInfo.xcprivacy
       - path: DictationKeyboardApp/PrivacyInfo.xcprivacy
         buildPhase: resources
-      - Shared
     settings:
       base:
         INFOPLIST_FILE: DictationKeyboardApp/Info.plist
@@ -32,22 +31,3 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
       testTargets: []
-    dependencies:
-      - target: KeyboardExtension
-        embed: true
-
-  KeyboardExtension:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: KeyboardExtension
-        excludes:
-          - PrivacyInfo.xcprivacy
-      - path: KeyboardExtension/PrivacyInfo.xcprivacy
-        buildPhase: resources
-      - Shared
-    settings:
-      base:
-        INFOPLIST_FILE: KeyboardExtension/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.jonesvan.DictationKeyboard.Keyboard
-        GENERATE_INFOPLIST_FILE: NO

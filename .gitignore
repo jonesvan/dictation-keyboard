@@ -17,6 +17,10 @@ xcuserdata/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 
+## Python
+__pycache__/
+*.pyc
+
 ## Swift Package Manager
 .build/
 .swiftpm/

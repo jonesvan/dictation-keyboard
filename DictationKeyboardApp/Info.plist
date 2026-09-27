@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>koyō</string>
+	<string>FindMy Scan</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,14 +22,16 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>The keyboard uses the microphone to transcribe your speech into text.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Speech is transcribed on-device or via Apple's speech service to type for you.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app scans for Bluetooth Low Energy advertisements in Apple's Find My (Offline Finding) format so you can inspect nearby packets. It reads only the public advertisement fields and never decrypts or uploads location data.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app scans for Bluetooth Low Energy advertisements in Apple's Find My (Offline Finding) format so you can inspect nearby packets.</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>bluetooth-le</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

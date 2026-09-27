@@ -4,16 +4,23 @@ Guidance for agents working in this repository.
 
 ## What this is
 
-An iOS custom keyboard (`UIInputViewController`) that dictates speech using
-Apple's `Speech` framework. Layout:
+An iOS SwiftUI app that scans BLE advertisements using CoreBluetooth and lists
+those matching Apple's Find My / Offline Finding format (manufacturer ID
+`0x004C`, type `0x12`). It shows each packet's timestamp, RSSI, app-scoped
+peripheral identifier, status byte, and raw payload, with filtering, a
+signal-strength bar/history chart, pause/clear controls, and CSV export. It
+never attempts to decrypt Apple's encrypted location data.
+
+Layout:
 
 ```
-DictationKeyboardApp/   Containing app (permissions + setup UI)
-KeyboardExtension/      The keyboard target
-Shared/                 Speech engine shared by both targets
+DictationKeyboardApp/   The SwiftUI app (scanner, views, CSV export)
 project.yml             XcodeGen spec (source of truth, do NOT hand-edit an .xcodeproj)
 .github/workflows/ios.yml   CI: build + optional TestFlight deploy
 ```
+
+The Xcode target/scheme (`DictationKeyboardApp`) and bundle IDs are kept from
+the previous keyboard app so the existing TestFlight pipeline continues to work.
 
 ## Environment constraint (important)
 
@@ -29,7 +36,8 @@ the `gh` CLI (installed) to drive and inspect CI.
 CI runs automatically on push to `master`/`main` and on PRs. The `build` job
 generates the project with XcodeGen and runs a **simulator compile check**
 (`CODE_SIGNING_ALLOWED=NO`) — it catches compile errors only, not runtime
-behavior.
+behavior. CoreBluetooth does not provide real advertisements in the Simulator,
+so runtime behavior must be tested on a device via TestFlight.
 
 Workflow for any code change:
 
@@ -73,8 +81,9 @@ and cannot be set by an agent:
 
 Other deployment facts:
 
-- Bundle IDs are `com.jonesvan.DictationKeyboard` and
-  `com.jonesvan.DictationKeyboard.Keyboard` (set in `project.yml`).
+- Bundle ID is `com.jonesvan.DictationKeyboard` (set in `project.yml`); it is
+  unchanged from the original keyboard app so the existing App Store Connect app
+  record and TestFlight availability keep working.
 - `DEVELOPMENT_TEAM` in `project.yml` is intentionally empty; CI injects it from
   the `APPLE_TEAM_ID` secret during archive.
 - `scripts/prune_dev_certs.py` removes stale development certificates before
@@ -97,8 +106,12 @@ Other deployment facts:
 ## Code conventions
 
 - Swift 5 language mode (`SWIFT_VERSION: "5.0"`), iOS 17 deployment target.
-- Keep `Shared/DictationEngine.swift` free of UIKit so both targets can use it.
-- Audio/speech calls that can fail must surface a diagnostic via the engine's
-  `onLog`/`onError` callbacks; the keyboard renders them in its on-screen log.
-- CoreAudio error `2003329396` (`'what'`, `AUIOClient_StartIO failed`) is a
-  transient I/O-start race; retry with backoff rather than switching categories.
+- Bluetooth permission is declared via `NSBluetoothAlwaysUsageDescription` in
+  `DictationKeyboardApp/Info.plist`; without it, constructing a `CBCentralManager`
+  crashes. Handle every `CBManagerState` (powered off, unauthorized, unsupported).
+- iOS does not expose a peripheral's hardware MAC address; only
+  `CBPeripheral.identifier` (an app-scoped UUID) is available. Do not claim a MAC.
+- The scanner must never attempt to decrypt Apple's encrypted location payload;
+  only decode public advertisement fields (status byte, public key, raw bytes).
+- Scanning uses `CBCentralManagerScanOptionAllowDuplicatesKey` so RSSI and
+  sighting counts update live.
