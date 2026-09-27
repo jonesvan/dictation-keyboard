@@ -39,13 +39,16 @@ struct ScannerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(statusTitle)
                     .font(.subheadline.bold())
+                Text("BLE \(scanner.totalAdvertisements) · Apple \(scanner.appleAdvertisements) · 0x12 \(scanner.findMyAdvertisements)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
                 if let error = scanner.bluetoothError {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     Text("iOS hides hardware MAC addresses; the identifier below is app-scoped.")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }

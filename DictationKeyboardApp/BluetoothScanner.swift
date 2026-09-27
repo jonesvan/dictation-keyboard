@@ -7,6 +7,10 @@ final class BluetoothScanner: NSObject, ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var bluetoothError: String?
 
+    @Published private(set) var totalAdvertisements = 0
+    @Published private(set) var appleAdvertisements = 0
+    @Published private(set) var findMyAdvertisements = 0
+
     @Published var isPaused = false
     @Published var filterText = ""
     @Published var minRSSI: Double = -100
@@ -104,8 +108,14 @@ extension BluetoothScanner: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         guard !isPaused else { return }
+        totalAdvertisements += 1
         guard let manufacturer = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data else { return }
         guard let parsed = ApplePacketParser.parse(manufacturer) else { return }
+
+        appleAdvertisements += 1
+        if parsed.type == ApplePacketParser.findMyType {
+            findMyAdvertisements += 1
+        }
 
         let rssi = RSSI.intValue
         let now = Date()
