@@ -5,15 +5,10 @@ on:
     branches: [master, main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      upload_to_testflight:
-        description: Archive and upload to TestFlight (requires signing secrets)
-        type: boolean
-        default: false
 
 concurrency:
   group: ios-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -52,7 +47,7 @@ jobs:
     name: Archive & upload to TestFlight
     runs-on: macos-15
     needs: build
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_to_testflight }}
+    if: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +94,7 @@ jobs:
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}.${{ github.run_attempt }}" \
             archive
 
       - name: Export IPA

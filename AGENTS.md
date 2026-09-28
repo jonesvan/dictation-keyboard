@@ -67,18 +67,21 @@ Do not report a task as done until the `build` job is green.
 
 ## Deploy (TestFlight)
 
-Deployment is the `testflight` job in `.github/workflows/ios.yml`. It only runs
-on a **manual `workflow_dispatch`** with the `upload_to_testflight` input set to
-`true`; it archives, exports an App Store Connect IPA, and uploads via `altool`.
-It depends on `build` succeeding first.
+Deployment is the `testflight` job in `.github/workflows/ios.yml`. It runs
+**automatically on every push to `master`/`main`** and on manual
+`workflow_dispatch` (pull requests are excluded). It depends on `build`
+succeeding first, then archives, exports an App Store Connect IPA, and uploads
+via `altool`.
+
+To trigger a deploy without a code change:
 
 ```sh
-gh workflow run "iOS" --ref master -f upload_to_testflight=true
+gh workflow run "iOS" --ref master
 gh run list --workflow=ios.yml --limit 5
 gh run watch <run-id> --exit-status
 ```
 
-Equivalent UI path: **Actions → iOS → Run workflow → upload_to_testflight**.
+Equivalent UI path: **Actions → iOS → Run workflow**.
 
 The archive/export steps need signing and App Store Connect credentials. These
 must exist as repository secrets (**Settings → Secrets and variables → Actions**)
@@ -98,6 +101,10 @@ Other deployment facts:
   record and TestFlight availability keep working.
 - `DEVELOPMENT_TEAM` in `project.yml` is intentionally empty; CI injects it from
   the `APPLE_TEAM_ID` secret during archive.
+- `CURRENT_PROJECT_VERSION` is overridden during the CI archive to
+  `${{ github.run_number }}.${{ github.run_attempt }}` so every upload gets a
+  unique build number; otherwise TestFlight rejects duplicate builds on the same
+  version train. The value in `project.yml` only affects local builds.
 - `scripts/prune_dev_certs.py` removes stale development certificates before
   archiving; it runs `continue-on-error` and may be skipped safely.
 - Signing/provisioning often needs several iterations; treat a failed
@@ -107,10 +114,9 @@ Other deployment facts:
 
 ## CI gotchas
 
-- `concurrency.group` is `ios-${{ github.ref }}` with `cancel-in-progress: true`.
-  A manually triggered `workflow_dispatch` on `master` can cancel a push-triggered
-  build on the same ref. If a push run shows `cancelled` after a few seconds,
-  re-run it or trigger a dispatch.
+- `concurrency.group` is `ios-${{ github.ref }}` with `cancel-in-progress: false`
+  so an in-flight TestFlight upload is never cancelled by a newer push. Pushes
+  queue instead; a third push cancels only the pending (not running) run.
 - Node 20 deprecation warnings on `actions/checkout@v4` are harmless.
 - Never commit `scripts/__pycache__/`, generated `DictationKeyboard.xcodeproj`,
   or `build/`.
