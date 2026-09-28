@@ -47,7 +47,10 @@ final class BluetoothScanner: NSObject, ObservableObject {
                     || device.category.rawValue.localizedCaseInsensitiveContains(query)
             }
             .filter { Double($0.rssi) >= minRSSI }
-            .sorted { $0.lastSeen > $1.lastSeen }
+            .sorted {
+                if $0.firstSeen != $1.firstSeen { return $0.firstSeen > $1.firstSeen }
+                return $0.id < $1.id
+            }
     }
 
     func startScanning() {

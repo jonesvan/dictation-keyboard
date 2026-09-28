@@ -4,6 +4,7 @@ import UIKit
 struct ScannerView: View {
     @StateObject private var scanner = BluetoothScanner()
     @State private var exportItem: ExportItem?
+    @State private var detectorDeviceID: String?
 
     var body: some View {
         NavigationStack {
@@ -27,6 +28,9 @@ struct ScannerView: View {
             }
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])
+            }
+            .navigationDestination(item: $detectorDeviceID) { id in
+                DetectorView(scanner: scanner, deviceID: id)
             }
         }
     }
@@ -142,9 +146,17 @@ struct ScannerView: View {
             } else {
                 List(scanner.filtered) { device in
                     NavigationLink {
-                        PacketDetailView(device: device)
+                        PacketDetailView(scanner: scanner, deviceID: device.id)
                     } label: {
                         DeviceRow(device: device)
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            detectorDeviceID = device.id
+                        } label: {
+                            Label("Locate", systemImage: "location.fill")
+                        }
+                        .tint(.green)
                     }
                 }
                 .listStyle(.plain)
